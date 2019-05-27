@@ -12,7 +12,6 @@ export NetworkModel="IEEE 14"
 cp test-dataset/scenario_1/solution1.txt .
 
 cmd="Julia -e 'include(\"MyJulia2.jl\"); MyJulia2(\"${InFile1}\", \"${InFile2}\", \"${InFile3}\", \"${InFile4}\", 34200, 2, \"${NetworkModel}\")'"
-eval $cmd
-#eval $cmd&>MyJulia2.log
+eval $cmd&>MyJulia2.log
 
 rm solution1.txt

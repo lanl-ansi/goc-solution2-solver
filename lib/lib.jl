@@ -154,9 +154,6 @@ function build_pm_model(goc_data)
 
     PowerModels.correct_cost_functions!(network)
 
-    # FYI, this breaks output API
-    #PowerModels.propagate_topology_status!(network)
-
     for (i,shunt) in network["shunt"]
         # test checks if a "switched shunt" in the orginal data model
         if shunt["dispatchable"]
@@ -370,7 +367,6 @@ end
     end
 
     time_start = time()
-    #result = run_fixed_pf_nbf_rect(network, model_constructor, solver)
     result = run_fixed_pf_nbf_rect2(network, model_constructor, solver)
     info(LOGGER, "pf solve time: $(time() - time_start)")
     if result["termination_status"] == LOCALLY_SOLVED || result["termination_status"] == ALMOST_LOCALLY_SOLVED
@@ -497,7 +493,6 @@ end
         if pg_switched || qg_switched || vm_switched
             info(LOGGER, "bus or gen swtiched: $iteration")
             time_start = time()
-            #result = run_fixed_pf_nbf_rect(network, model_constructor, solver)
             result = run_fixed_pf_nbf_rect2(network, model_constructor, solver)
             info(LOGGER, "pf solve time: $(time() - time_start)")
             if result["termination_status"] == LOCALLY_SOLVED || result["termination_status"] == ALMOST_LOCALLY_SOLVED
@@ -648,12 +643,7 @@ end
     PowerModels.variable_voltage(pm, bounded=false)
     PowerModels.variable_active_generation(pm, bounded=false)
     PowerModels.variable_reactive_generation(pm, bounded=false)
-    #PowerModels.variable_branch_flow(pm, bounded=false)
-    #PowerModels.variable_dcline_flow(pm, bounded=false)
 
-    #PowerModels.variable_branch_flow(pm, bounded=false)
-
-    # TODO set bounds bounds on alpha and total gen capacity
     var(pm)[:delta] = @variable(pm.model, delta, base_name="delta", start=0.0)
     #var(pm)[:delta] = @variable(pm.model, delta, base_name="delta", start=ref(pm, :delta_start))
     #Memento.info(LOGGER, "post variable time: $(time() - start_time)")
@@ -672,7 +662,6 @@ end
     end
 
     for i in ids(pm, :ref_buses)
-    #    PowerModels.constraint_theta_ref(pm, i)
         JuMP.@constraint(pm.model, var(pm, :vi, i) == 0)
     end
     #Memento.info(LOGGER, "misc constraints time: $(time() - start_time)")
