@@ -1,8 +1,8 @@
 #!/usr/bin/env julia
 
 using Pkg
-#Pkg.activate(".")
-#Pkg.instantiate()
+Pkg.activate(".")
+Pkg.instantiate()
 Pkg.status()
 
 time_start = time()

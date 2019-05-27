@@ -1,7 +1,7 @@
 max_threads = 12
 
 using Distributed
-if distribute && Distributed.nprocs() <= 2
+if Distributed.nprocs() <= 2
     threads = min(trunc(Int, Sys.CPU_THREADS*0.75), max_threads)
     println("threads: $(threads)/$(Sys.CPU_THREADS)")
 
@@ -9,8 +9,8 @@ if distribute && Distributed.nprocs() <= 2
     println("process ids: $(proc_ids)")
 end
 
-#@everywhere using Pkg
-#@everywhere Pkg.activate(".")
+@everywhere using Pkg
+@everywhere Pkg.activate(".")
 
 include("solution2-solver.jl")
 
