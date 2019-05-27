@@ -77,11 +77,11 @@ function compute_solution2(con_file::String, inl_file::String, raw_file::String,
         end
     end
 
-    time_contingencies = time() - time_contingencies_start
-    info(LOGGER, "contingency eval time: $(time_contingencies)")
-
     correct_contingency_solutions!(network, contingency_solutions)
     write_solution2(network, contingency_solutions; output_dir=output_dir)
+
+    time_contingencies = time() - time_contingencies_start
+    info(LOGGER, "contingency eval time: $(time_contingencies)")
 end
 
 
