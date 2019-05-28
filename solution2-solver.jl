@@ -118,7 +118,7 @@ end
         cont_gen["gen_status"] = 0
         pg_lost = cont_gen["pg"]
 
-        result = run_fixpoint_pf_v2_2!(network_tmp, pg_lost, ACRPowerModel, nlp_solver, iteration_limit=1)
+        result = run_fixpoint_pf_v2_2!(network_tmp, pg_lost, ACRPowerModel, nlp_solver, iteration_limit=5)
 
         result["solution"]["feasible"] = (result["termination_status"] == LOCALLY_SOLVED || result["termination_status"] == ALMOST_LOCALLY_SOLVED)
         result["solution"]["cont_type"] = "gen"
@@ -136,7 +136,7 @@ end
         network_tmp = deepcopy(network)
         network_tmp["branch"]["$(cont.idx)"]["br_status"] = 0
 
-        result = run_fixpoint_pf_v2_2!(network_tmp, 0.0, ACRPowerModel, nlp_solver, iteration_limit=1)
+        result = run_fixpoint_pf_v2_2!(network_tmp, 0.0, ACRPowerModel, nlp_solver, iteration_limit=5)
 
         result["solution"]["feasible"] = (result["termination_status"] == LOCALLY_SOLVED || result["termination_status"] == ALMOST_LOCALLY_SOLVED)
         result["solution"]["cont_type"] = "branch"
