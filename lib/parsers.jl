@@ -536,18 +536,24 @@ function parse_solution1_file(io::IO)
     lines = readlines(io)
 
     # skip bus list header section
-    idx = 3
+    idx = 1
 
-    reading_buses = true
+    separator_count = 0
+    skip_next = false
+
     while idx <= length(lines)
         line = lines[idx]
-        if startswith(line, "--")
-            reading_buses = false
-            idx += 1
+        if length(strip(line)) == 0
+            warn(LOGGER, "skipping blank line in solution1 file ($(idx))")
+        elseif skip_next
+            skip_next = false
+        elseif startswith(strip(line), "--")
+            separator_count += 1
+            skip_next = true
         else
-            parts = split(line, ",")
-            @assert length(parts) >= 4
-            if reading_buses
+            if separator_count == 1
+                parts = split(line, ",")
+                @assert length(parts) >= 4
                 bus_data = (
                     bus = parse(Int, parts[1]),
                     vm = parse(Float64, parts[2]),
@@ -555,7 +561,9 @@ function parse_solution1_file(io::IO)
                     bcs = parse(Float64, parts[4])
                 )
                 push!(bus_data_list, bus_data)
-            else
+            elseif separator_count == 2
+                parts = split(line, ",")
+                @assert length(parts) >= 4
                 gen_data = (
                     bus = parse(Int, parts[1]),
                     id = strip(parts[2]),
@@ -563,6 +571,8 @@ function parse_solution1_file(io::IO)
                     qg = parse(Float64, parts[4])
                 )
                 push!(gen_data_list, gen_data)
+            else
+                warn(LOGGER, "skipping line in solution1 file ($(idx)): $(line)")
             end
         end
         idx += 1
