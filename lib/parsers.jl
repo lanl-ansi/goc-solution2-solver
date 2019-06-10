@@ -566,7 +566,7 @@ function parse_solution1_file(io::IO)
                 @assert length(parts) >= 4
                 gen_data = (
                     bus = parse(Int, parts[1]),
-                    id = strip(parts[2]),
+                    id = strip(strip(parts[2]), ['\'', ' ']),
                     pg = parse(Float64, parts[3]),
                     qg = parse(Float64, parts[4])
                 )
