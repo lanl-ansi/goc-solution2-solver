@@ -604,6 +604,14 @@ end
         sol["bus"][i] = bus_dict
     end
 
+    sol["shunt"] = Dict{String,Any}()
+    for (i,shunt) in network["shunt"]
+        shunt_dict = Dict{String,Any}()
+        shunt_dict["gs"] = get(shunt, "gs", 0.0)
+        shunt_dict["bs"] = get(shunt, "bs", 0.0)
+        sol["shunt"][i] = shunt_dict
+    end
+
     sol["gen"] = Dict{String,Any}()
     for (i,gen) in network["gen"]
         gen_dict = Dict{String,Any}()
@@ -626,7 +634,6 @@ end
 
     return sol
 end
-
 
 
 ""

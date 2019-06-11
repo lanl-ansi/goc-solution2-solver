@@ -1,7 +1,7 @@
 @everywhere using Ipopt
 
-include("lib/parsers.jl")
-include("lib/lib.jl")
+include("code-2-lib/parsers.jl")
+include("code-2-lib/lib.jl")
 
 function compute_solution2(con_file::String, inl_file::String, raw_file::String, rop_file::String, time_limit::Int, scoring_method::Int, network_model::String; output_dir::String="", scenario_id::String="none")
     time_data_start = time()
