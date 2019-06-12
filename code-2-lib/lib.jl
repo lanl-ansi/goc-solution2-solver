@@ -639,9 +639,9 @@ end
 ""
 
 @everywhere function run_fixed_pf_nbf_rect2(file, model_constructor, solver; kwargs...)
-    #return run_generic_model(file, model_constructor, solver, post_fixed_pf_nbf_rect2; ref_extensions=[PowerModels.core_ref!], solution_builder = get_second_stage_solution, kwargs...)
-    return run_generic_model(file, model_constructor, solver, post_fixed_pf_nbf_rect2; solution_builder = get_second_stage_solution, kwargs...)
+    return run_model(file, model_constructor, solver, post_fixed_pf_nbf_rect2; solution_builder = solution_second_stage!, kwargs...)
 end
+
 
 ""
 
@@ -650,7 +650,12 @@ end
     PowerModels.variable_voltage(pm, bounded=false)
     PowerModels.variable_active_generation(pm, bounded=false)
     PowerModels.variable_reactive_generation(pm, bounded=false)
+    #PowerModels.variable_branch_flow(pm, bounded=false)
+    #PowerModels.variable_dcline_flow(pm, bounded=false)
 
+    #PowerModels.variable_branch_flow(pm, bounded=false)
+
+    # TODO set bounds bounds on alpha and total gen capacity
     var(pm)[:delta] = @variable(pm.model, delta, base_name="delta", start=0.0)
     #var(pm)[:delta] = @variable(pm.model, delta, base_name="delta", start=ref(pm, :delta_start))
     #Memento.info(LOGGER, "post variable time: $(time() - start_time)")
@@ -660,7 +665,7 @@ end
     vr = var(pm, :vr)
     vi = var(pm, :vi)
 
-    PowerModels.constraint_voltage(pm)
+    PowerModels.constraint_model_voltage(pm)
 
     for (i,bus) in ref(pm, :bus)
         if bus["vm_fixed"]
@@ -669,7 +674,7 @@ end
     end
 
     for i in ids(pm, :ref_buses)
-        JuMP.@constraint(pm.model, var(pm, :vi, i) == 0)
+        PowerModels.constraint_theta_ref(pm, i)
     end
     #Memento.info(LOGGER, "misc constraints time: $(time() - start_time)")
 
@@ -772,97 +777,26 @@ end
 
 ""
 
-@everywhere function get_second_stage_solution(pm::GenericPowerModel, sol::Dict{String,Any})
+@everywhere function solution_second_stage!(pm::GenericPowerModel, sol::Dict{String,Any})
     #start_time = time()
-    PowerModels.add_bus_voltage_setpoint(sol, pm)
+    PowerModels.add_setpoint_bus_voltage!(sol, pm)
     #Memento.info(LOGGER, "voltage solution time: $(time() - start_time)")
 
     #start_time = time()
-    #PowerModels.add_generator_power_setpoint(sol, pm)
-    add_generator_power_setpoint(sol, pm)
+    PowerModels.add_setpoint_generator_power!(sol, pm)
     #Memento.info(LOGGER, "generator solution time: $(time() - start_time)")
 
     #start_time = time()
-    PowerModels.add_branch_flow_setpoint(sol, pm)
+    PowerModels.add_setpoint_branch_flow!(sol, pm)
     #Memento.info(LOGGER, "branch solution time: $(time() - start_time)")
 
     sol["delta"] = JuMP.value(var(pm, :delta))
 
     #start_time = time()
-    PowerModels.add_setpoint_fixed(sol, pm, "shunt", "bs", default_value = (item) -> item["bs"])
+    PowerModels.add_setpoint_fixed!(sol, pm, "shunt", "bs", default_value = (item) -> item["bs"])
     #Memento.info(LOGGER, "shunt solution time: $(time() - start_time)")
 
     #PowerModels.print_summary(sol)
-end
-
-
-
-@everywhere function add_generator_power_setpoint(sol, pm::GenericPowerModel)
-    add_setpoint_status(sol, pm, "gen", "pg", :pg, status_name="gen_status")
-    add_setpoint_status(sol, pm, "gen", "qg", :qg, status_name="gen_status")
-end
-
-"add support to skip inactive items"
-
-@everywhere function add_setpoint_status(
-    sol,
-    pm::GenericPowerModel,
-    dict_name,
-    param_name,
-    variable_symbol;
-    index_name = "index",
-    status_name = "status",
-    active_status_value = 1,
-    default_value = (item) -> NaN,
-    scale = (x,item,cnd) -> x,
-    extract_var = (var,idx,item) -> var[idx],
-    sol_dict = get(sol, dict_name, Dict{String,Any}()),
-    conductorless = false
-)
-
-    if InfrastructureModels.ismultinetwork(pm.data)
-        data_dict = pm.data["nw"]["$(pm.cnw)"][dict_name]
-    else
-        data_dict = pm.data[dict_name]
-    end
-
-    if length(data_dict) > 0
-        sol[dict_name] = sol_dict
-    end
-
-    for (i,item) in data_dict
-        idx = Int(item[index_name])
-        sol_item = sol_dict[i] = get(sol_dict, i, Dict{String,Any}())
-
-        if conductorless
-            sol_item[param_name] = default_value(item)
-
-            if item[status_name] == active_status_value
-                variable = extract_var(var(pm, pm.cnw, variable_symbol), idx, item)
-                sol_item[param_name] = scale(JuMP.value(variable), item, 1)
-            end
-        else
-            num_conductors = length(conductor_ids(pm))
-            cnd_idx = 1
-            sol_item[param_name] = MultiConductorVector{Real}([default_value(item) for i in 1:num_conductors])
-
-            if item[status_name] == active_status_value
-                for conductor in conductor_ids(pm)
-                    try
-                        variable = extract_var(var(pm, variable_symbol, cnd=conductor), idx, item)
-                        sol_item[param_name][cnd_idx] = scale(JuMP.value(variable), item, conductor)
-                    catch
-                    end
-                    cnd_idx += 1
-                end
-            end
-        end
-
-        # remove MultiConductorValue, if it was not a ismulticonductor network
-        if !ismulticonductor(pm)
-            sol_item[param_name] = sol_item[param_name][1]
-        end
-    end
 end
 
 
