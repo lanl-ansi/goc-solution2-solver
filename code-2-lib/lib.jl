@@ -808,24 +808,28 @@ end
             gen_ids = [gen["index"] for gen in gens]
             qgs = [solution["gen"]["$(j)"]["qg"] for j in gen_ids]
             if !isapprox(abs(sum(qgs)), sum(abs.(qgs)))
-                info(LOGGER, "$(i) - $(gen_ids) - $(qgs) - output requires correction!")
-                println([gen["source_id"] for gen in gens])
+                #info(LOGGER, "$(i) - $(gen_ids) - $(qgs) - output requires correction!")
                 qg_total = sum(qgs)
 
                 qg_remaining = sum(qgs)
                 qg_assignment = Dict(j => 0.0 for j in gen_ids)
-                for gen in gens
+                for (i,gen) in enumerate(gens)
                     gen_qg = qg_remaining
                     gen_qg = max(gen_qg, gen["qmin"])
                     gen_qg = min(gen_qg, gen["qmax"])
                     qg_assignment[gen["index"]] = gen_qg
                     qg_remaining = qg_remaining - gen_qg
+                    if i == length(gens) && abs(qg_remaining) > 0.0
+                        qg_assignment[gen["index"]] = gen_qg + qg_remaining
+                    end
                 end
+                #info(LOGGER, "$(qg_assignment)")
                 for (j,qg) in qg_assignment
                     solution["gen"]["$(j)"]["qg"] = qg
                 end
 
                 sol_qg_total = sum(solution["gen"]["$(j)"]["qg"] for j in gen_ids)
+                #info(LOGGER, "$(qg_total) - $(sol_qg_total)")
                 @assert isapprox(qg_total, sol_qg_total)
 
                 #info(LOGGER, "updated to $([solution["gen"]["$(j)"]["qg"] for j in gen_ids])")
