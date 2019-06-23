@@ -1,13 +1,5 @@
-max_threads = 12
-
-using Distributed
-if Distributed.nprocs() <= 2
-    threads = min(trunc(Int, Sys.CPU_THREADS*0.75), max_threads)
-    println("threads: $(threads)/$(Sys.CPU_THREADS)")
-
-    proc_ids = Distributed.addprocs(threads)
-    println("process ids: $(proc_ids)")
-end
+include("code-2-lib/distributed.jl")
+add_procs()
 
 @everywhere using Pkg
 @everywhere Pkg.activate(".")

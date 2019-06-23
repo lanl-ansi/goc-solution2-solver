@@ -7,7 +7,6 @@ function remove_comment(string)
 end
 
 
-
 ##### GOC Initialization File Parser (.ini) #####
 
 function parse_goc_files(ini_file; scenario_id="")
@@ -83,7 +82,7 @@ function find_goc_files(ini_file; scenario_id="")
     return files, scenario_id
 end
 
-function parse_goc_files(con_file, inl_file, raw_file, rop_file; ini_file="", scenario_id="none")
+@everywhere function parse_goc_files(con_file, inl_file, raw_file, rop_file; ini_file="", scenario_id="none")
     files = Dict(
         "rop" => rop_file,
         "raw" => raw_file,
@@ -180,13 +179,13 @@ end
 
 ##### Unit Inertia and Governor Response Data File Parser (.inl) #####
 
-function parse_inl_file(file::String)
+@everywhere function parse_inl_file(file::String)
     open(file) do io
         return parse_inl_file(io)
     end
 end
 
-function parse_inl_file(io::IO)
+@everywhere function parse_inl_file(io::IO)
     inl_list = []
     for line in readlines(io)
         #line = remove_comment(line)
@@ -221,7 +220,7 @@ end
 
 ##### Generator Cost Data File Parser (.rop) #####
 
-rop_sections = [
+@everywhere rop_sections = [
     "mod" => "Modification Code",
     "bus_vm" => "Bus Voltage Attributes",
     "shunt_adj" => "Adjustable Bus Shunts",
@@ -242,13 +241,13 @@ rop_sections = [
     "dc_const" => "Two Terminal DC Line Constraint Dependencies",
 ]
 
-function parse_rop_file(file::String)
+@everywhere function parse_rop_file(file::String)
     open(file) do io
         return parse_rop_file(io)
     end
 end
 
-function parse_rop_file(io::IO)
+@everywhere function parse_rop_file(io::IO)
     active_section_idx = 1
     active_section = rop_sections[active_section_idx]
 
@@ -296,7 +295,7 @@ function parse_rop_file(io::IO)
     return section_data
 end
 
-function _parse_rop_gen(line)
+@everywhere function _parse_rop_gen(line)
     line_parts = split(line, ",")
     @assert length(line_parts) >= 4
 
@@ -312,7 +311,7 @@ function _parse_rop_gen(line)
     return data
 end
 
-function _parse_rop_pg(line)
+@everywhere function _parse_rop_pg(line)
     line_parts = split(line, ",")
     @assert length(line_parts) >= 7
 
@@ -332,7 +331,7 @@ function _parse_rop_pg(line)
     return data
 end
 
-function _parse_rop_pwl(pwl_parts, point_lines)
+@everywhere function _parse_rop_pwl(pwl_parts, point_lines)
     @assert length(pwl_parts) >= 2
 
     points = []
@@ -364,7 +363,7 @@ end
 ##### Contingency Description Data File (.con) #####
 
 # OPEN BRANCH FROM BUS *I TO BUS *J CIRCUIT *1CKT
-branch_contigency_structure = [
+@everywhere branch_contigency_structure = [
     1 => "OPEN",
     2 => "BRANCH",
     3 => "FROM",
@@ -379,7 +378,7 @@ branch_contigency_structure = [
 
 #=
 # OPEN BRANCH FROM BUS *I TO BUS *J CIRCUIT *1CKT
-branch_contigency_structure_alt = [
+@everywhere branch_contigency_structure_alt = [
     1 => "OPEN",
     2 => "BRANCH",
     3 => "FROM",
@@ -394,7 +393,7 @@ branch_contigency_structure_alt = [
 =#
 
 # REMOVE UNIT *ID FROM BUS *I
-generator_contigency_structure = [
+@everywhere generator_contigency_structure = [
     1 => "REMOVE",
     2 => "UNIT",
     #3 => "ID",
@@ -404,13 +403,13 @@ generator_contigency_structure = [
 ]
 
 
-function parse_con_file(file::String)
+@everywhere function parse_con_file(file::String)
     open(file) do io
         return parse_con_file(io)
     end
 end
 
-function parse_con_file(io::IO)
+@everywhere function parse_con_file(io::IO)
     con_lists = []
 
     tokens = []
@@ -523,13 +522,13 @@ end
 
 
 
-function parse_solution1_file(file::String)
+@everywhere function parse_solution1_file(file::String)
     open(file) do io
         return parse_solution1_file(io)
     end
 end
 
-function parse_solution1_file(io::IO)  
+@everywhere function parse_solution1_file(io::IO)
     bus_data_list = []
     gen_data_list = []
 

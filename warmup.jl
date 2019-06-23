@@ -2,7 +2,7 @@
 
 using Pkg
 Pkg.activate(".")
-Pkg.instantiate()
+#Pkg.instantiate()
 Pkg.status()
 
 time_start = time()
