@@ -6,8 +6,10 @@ MyJulia2.log
 
 solution1.txt
 solution2.txt
+solution2-*.txt
 
 test-dataset/scenario_1/solution2.txt
+test-dataset/scenario_1/solution2-*.txt
 
 *.jl.cov
 *.jl.*.cov

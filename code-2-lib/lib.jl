@@ -10,10 +10,10 @@
 
 @everywhere const vm_eq_tol = 1e-4
 
-import Statistics: mean
+@everywhere import Statistics: mean
 
 
-function build_pm_model(goc_data)
+@everywhere function build_pm_model(goc_data)
     scenario = goc_data.scenario
     network = goc_data.network
 
@@ -130,12 +130,12 @@ function build_pm_model(goc_data)
         if cont["component"] == "branch"
             branch_id = (cont["i"], cont["j"], cont["ckt"])
             pm_branch = branch_lookup[branch_id]
-            push!(branch_ids, (idx=pm_branch["index"], label=cont["label"]))
+            push!(branch_ids, (idx=pm_branch["index"], label=cont["label"], type="branch"))
 
         elseif cont["component"] == "generator"
             gen_id = (cont["i"], cont["id"])
             pm_gen = gen_lookup[gen_id]
-            push!(generator_ids, (idx=pm_gen["index"], label=cont["label"]))
+            push!(generator_ids, (idx=pm_gen["index"], label=cont["label"], type="gen"))
 
         else
             error(LOGGER, "unrecognized contingency component type $(cont["component"]) at contingency $(i)")
@@ -153,6 +153,9 @@ function build_pm_model(goc_data)
     ##### Fix Broken Data #####
 
     PowerModels.correct_cost_functions!(network)
+
+    # FYI, this breaks output API
+    #PowerModels.propagate_topology_status!(network)
 
     for (i,shunt) in network["shunt"]
         # test checks if a "switched shunt" in the orginal data model
@@ -244,7 +247,7 @@ end
 
 
 
-function read_solution1(network; output_dir="", state_file="solution1.txt")
+@everywhere function read_solution1(network; output_dir="", state_file="solution1.txt")
     if length(output_dir) > 0
         solution1_path = joinpath(output_dir, state_file)
     else
@@ -254,7 +257,7 @@ function read_solution1(network; output_dir="", state_file="solution1.txt")
     return build_pm_solution(network, solution1_path)
 end
 
-function build_pm_solution(network, goc_sol_file::String)
+@everywhere function build_pm_solution(network, goc_sol_file::String)
     info(LOGGER, "loading solution file: $(goc_sol_file)")
     goc_sol = parse_solution1_file(goc_sol_file)
 
@@ -264,7 +267,7 @@ function build_pm_solution(network, goc_sol_file::String)
     return pm_sol
 end
 
-function build_pm_solution(network, goc_sol)
+@everywhere function build_pm_solution(network, goc_sol)
     bus_lookup = Dict(parse(Int, bus["source_id"][2]) => bus for (i,bus) in network["bus"])
     gen_lookup = Dict((gen["source_id"][2], strip(gen["source_id"][3])) => gen for (i,gen) in network["gen"])
     shunt_lookup = Dict{Int,Any}()
@@ -520,8 +523,8 @@ end
 end
 
 
+
 @everywhere function apply_pg_response!(network, pg_delta)
-    @assert (pg_delta >= 0.0)
     for (i,gen) in network["gen"]
         gen["pg_fixed"] = false
     end
@@ -555,14 +558,13 @@ end
             if gen["gen_status"] != 0
                 pg_cont = gen["pg_base"] + delta_est*gen["alpha"]
 
-                if pg_cont <= gen["pmin"] && gen["alpha"] < 0
+                if pg_cont <= gen["pmin"]
                     gen["pg"] = gen["pmin"]
                     if !gen["pg_fixed"]
                         gen["pg_fixed"] = true
                         #info(LOGGER, "gen $(i) hit lb $(gen["pmin"]) with target value of $(pg_cont)")
                     end
-                elseif pg_cont >= gen["pmax"] && gen["alpha"] > 0
-                    
+                elseif pg_cont >= gen["pmax"]
                     gen["pg"] = gen["pmax"]
                     if !gen["pg_fixed"]
                         gen["pg_fixed"] = true
@@ -591,6 +593,7 @@ end
     network["delta"] = delta_est
     return delta_est
 end
+
 
 
 @everywhere function extract_solution(network; branch_flow=false)
@@ -839,8 +842,66 @@ end
 end
 
 
+
+"build a static ordering of all contigencies"
+
+@everywhere function contingency_order(pm_network)
+    gen_cont_order = sort(pm_network["gen_contingencies"], by=(x) -> x.label)
+    branch_cont_order = sort(pm_network["branch_contingencies"], by=(x) -> x.label)
+
+    gen_cont_total = length(gen_cont_order)
+    branch_cont_total = length(branch_cont_order)
+
+    gen_rate = 1.0
+    branch_rate = 1.0
+    steps = 1
+
+    if gen_cont_total == 0 && branch_cont_total == 0
+        # defaults are good
+    elseif gen_cont_total == 0 && branch_cont_total != 0
+        steps = branch_cont_total
+    elseif gen_cont_total != 0 < branch_cont_total == 0
+        steps = gen_cont_total
+    elseif gen_cont_total == branch_cont_total
+        steps = branch_cont_total
+    elseif gen_cont_total < branch_cont_total
+        gen_rate = 1.0
+        branch_rate = branch_cont_total/gen_cont_total
+        steps = gen_cont_total
+    elseif gen_cont_total > branch_cont_total
+        gen_rate = gen_cont_total/branch_cont_total
+        branch_rate = 1.0 
+        steps = branch_cont_total
+    end
+
+    cont_order = []
+    gen_cont_start = 1
+    branch_cont_start = 1
+    for s in 1:steps
+        gen_cont_end = min(gen_cont_total, trunc(Int,ceil(s*gen_rate)))
+        #println(gen_cont_start:gen_cont_end)
+        for j in gen_cont_start:gen_cont_end
+            push!(cont_order, gen_cont_order[j])
+        end
+        gen_cont_start = gen_cont_end+1
+
+        branch_cont_end = min(branch_cont_total, trunc(Int,ceil(s*branch_rate)))
+        #println("$(s) - $(branch_cont_start:branch_cont_end)")
+        for j in branch_cont_start:branch_cont_end
+            push!(cont_order, branch_cont_order[j])
+        end
+        branch_cont_start = branch_cont_end+1
+    end
+
+    @assert(length(cont_order) == gen_cont_total + branch_cont_total)
+
+    return cont_order
+end
+
+
 "checks feasibility criteria of contingencies, corrects when possible"
-function correct_contingency_solutions!(network, contingency_solutions)
+
+@everywhere function correct_contingency_solutions!(network, contingency_solutions)
     bus_gens = gens_by_bus(network)
 
     cont_changes = Int64[]
@@ -1045,7 +1106,7 @@ function correct_contingency_solutions!(network, contingency_solutions)
 end
 
 
-function _summary_changes(network, contingency, vm_changes, bs_changes, pg_changes, qg_changes)
+@everywhere function _summary_changes(network, contingency, vm_changes, bs_changes, pg_changes, qg_changes)
     println("")
 
     data = [
@@ -1094,7 +1155,7 @@ function _summary_changes(network, contingency, vm_changes, bs_changes, pg_chang
 end
 
 
-function write_solution2(pm_network, contingencies; output_dir="", solution_file="solution2.txt")
+@everywhere function write_solution2(pm_network, contingencies; output_dir="", solution_file="solution2.txt")
     if length(output_dir) > 0
         solution_path = joinpath(output_dir, solution_file)
     else
@@ -1139,6 +1200,8 @@ function write_solution2(pm_network, contingencies; output_dir="", solution_file
             write(sol2, "$(base_mva*cont_solution["delta"])\n")
         end
     end
+
+    return solution_path
 end
 
 
@@ -1197,3 +1260,25 @@ function compute_power_balance_deltas!(network)
         q_delta_abs_mean = mean(q_delta_abs),
     )
 end
+
+
+function combine_files(files, output_file_name; output_dir="")
+    if length(output_dir) > 0
+        output_path = joinpath(output_dir, output_file_name)
+    else
+        output_path = output_file_name
+    end
+
+    open(output_path, "w") do output
+        for file in files
+            open(file, "r") do input
+                for line in readlines(input, keep=true)
+                    write(output, line)
+                end
+            end
+        end
+    end
+
+    return output_path
+end
+
