@@ -52,12 +52,20 @@ function add_remote_procs()
     #println(node_list)
 
     node_names = parse_node_names(node_list)
-    #println(node_names)
 
-    node_names = [name for name in node_names if name != gethostname()]
+    @info("host name: $(gethostname())")
+    @info("slurm allocation nodes: $(node_names)")
+
+    # some systems add .local to the host name
+    hostname = gethostname()
+    if endswith(hostname, ".local")
+        hostname = hostname[1:end-6]
+    end
+    node_names = [name for name in node_names if name != hostname]
 
     proc_ids = Int[]
     if length(node_names) > 0
+        @info("remote slurm nodes: $(node_names)")
         node_processes = min(trunc(Int, Sys.CPU_THREADS*0.75), max_node_processes)
         println("remote processes per node: $(node_processes)/$(Sys.CPU_THREADS)")
         for i in 1:node_processes
