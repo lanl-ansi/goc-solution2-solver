@@ -30,13 +30,11 @@ function parse_node_names(slurm_node_list::String)
 end
 
 function add_local_procs()
-    proc_ids = Int[]
-    if Distributed.nprocs() <= 2
-        node_processes = min(trunc(Int, Sys.CPU_THREADS*0.75), max_node_processes)
-        println("local processes: $(node_processes) of $(Sys.CPU_THREADS)")
+    node_processes = min(trunc(Int, Sys.CPU_THREADS*0.75), max_node_processes)
+    println("local processes: $(node_processes) of $(Sys.CPU_THREADS)")
 
-        proc_ids = Distributed.addprocs(node_processes)
-    end
+    proc_ids = Distributed.addprocs(node_processes)
+
     return proc_ids
 end
 
@@ -56,12 +54,7 @@ function add_remote_procs()
     @info("host name: $(gethostname())")
     @info("slurm allocation nodes: $(node_names)")
 
-    # some systems add .local to the host name
-    hostname = gethostname()
-    if endswith(hostname, ".local")
-        hostname = hostname[1:end-6]
-    end
-    node_names = [name for name in node_names if name != hostname]
+    node_names = [name for name in node_names if name != gethostname()]
 
     proc_ids = Int[]
     if length(node_names) > 0
