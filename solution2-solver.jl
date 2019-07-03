@@ -9,6 +9,18 @@ function compute_solution2(con_file::String, inl_file::String, raw_file::String,
     time_data_start = time()
     goc_data = parse_goc_files(con_file, inl_file, raw_file, rop_file, scenario_id=scenario_id)
     network = build_pm_model(goc_data)
+
+    sol = read_solution1(network, output_dir=output_dir)
+    PowerModels.update_data!(network, sol)
+
+    check_network_solution(network)
+
+    network_tmp = deepcopy(network)
+    balance = compute_power_balance_deltas!(network_tmp)
+
+    if balance.p_delta_abs_max > 0.01 || balance.q_delta_abs_max > 0.01
+        error(LOGGER, "solution1 power balance requirements not satified (all power balance values should be below 0.01). $(balance)")
+    end
     load_time = time() - time_data_start
 
     ###### Prepare Solution 2 ######
