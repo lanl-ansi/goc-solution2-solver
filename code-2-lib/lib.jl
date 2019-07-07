@@ -551,6 +551,11 @@ end
         end
         #info(LOGGER, "alpha total: $(alpha_total)")
 
+        if isapprox(alpha_total, 0.0) && !isapprox(pg_total, pg_target)
+            warn(LOGGER, "insufficient generator response to meet demand, remaining pg $(pg_total - pg_target), remaining alpha $(alpha_total)")
+            break
+        end
+
         delta_est += pg_delta/alpha_total
         #info(LOGGER, "detla: $(delta_est)")
 
