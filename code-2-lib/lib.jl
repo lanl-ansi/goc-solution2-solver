@@ -354,11 +354,16 @@ end
     for (i,gen) in network["gen"]
         gen["qg_fixed"] = false
         gen["pg_start"] = gen["pg"]
+        if isapprox(gen["qmin"],gen["qmax"])
+            gen["qg_fixed"] = true
+            gen["qg"] = gen["qmin"]
+        end
         gen["qg_start"] = gen["qg"]
     end
 
     for (i,bus) in network["bus"]
-        if length(bus_gens[i]) == 0
+        active_gens = [gen for gen in bus_gens[i] if !gen["qg_fixed"]]
+        if length(active_gens) == 0
             bus["vm_fixed"] = false
         else
             bus["vm_fixed"] = true
@@ -430,7 +435,13 @@ end
                 qmin = sum(gen["qmin"] for gen in bus_gens[i])
                 qmax = sum(gen["qmax"] for gen in bus_gens[i])
 
-                if bus["vm_fixed"]
+                if isapprox(qmin,qmax)
+                    @assert !bus["vm_fixed"]
+                    for gen in bus_gens[i]
+                        @assert gen["qg_fixed"]
+                        @assert isapprox(gen["qg"],gen["qmin"])
+                    end
+                elseif bus["vm_fixed"]
                     if qg >= qmax
                         bus["vm_fixed"] = false
                         vm_switched = true
