@@ -82,6 +82,7 @@ function find_goc_files(ini_file; scenario_id="")
     return files, scenario_id
 end
 
+
 @everywhere function parse_goc_files(con_file, inl_file, raw_file, rop_file; ini_file="", scenario_id="none")
     files = Dict(
         "rop" => rop_file,
@@ -97,9 +98,10 @@ end
     info(LOGGER, "  con: $(files["con"])")
 
     info(LOGGER, "skipping power models data warnings")
+    pm_logger_level = getlevel(getlogger(PowerModels))
     setlevel!(getlogger(PowerModels), "error")
     network_model = PowerModels.parse_file(files["raw"], import_all=true)
-    setlevel!(getlogger(PowerModels), "info")
+    setlevel!(getlogger(PowerModels), pm_logger_level)
 
     gen_cost = parse_rop_file(files["rop"])
     response = parse_inl_file(files["inl"])

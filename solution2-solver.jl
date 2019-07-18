@@ -7,6 +7,7 @@ include("code-2-lib/lib.jl")
 
 function compute_solution2(con_file::String, inl_file::String, raw_file::String, rop_file::String, time_limit::Int, scoring_method::Int, network_model::String; output_dir::String="", scenario_id::String="none")
     time_data_start = time()
+    PowerModels.silence()
     goc_data = parse_goc_files(con_file, inl_file, raw_file, rop_file, scenario_id=scenario_id)
     network = build_pm_model(goc_data)
 
@@ -64,15 +65,17 @@ function compute_solution2(con_file::String, inl_file::String, raw_file::String,
     end
 
     solution2_files = pmap(solution2_solver, process_data)
-
     sort!(solution2_files)
-
-    println("pmap result: $(solution2_files)")
+    #println("pmap result: $(solution2_files)")
 
     time_contingencies = time() - time_contingencies_start
     info(LOGGER, "contingency eval time: $(time_contingencies)")
+    info(LOGGER, "time per contingency: $(time_contingencies/cont_total)")
 
+    info(LOGGER, "combine $(length(solution2_files)) solution2 files")
     combine_files(solution2_files, "solution2.txt"; output_dir=output_dir)
+    remove_files(solution2_files)
+
 
     println("")
 
@@ -103,11 +106,11 @@ end
 @everywhere function solution2_solver(process_data)
     #println(process_data)
     time_data_start = time()
+    PowerModels.silence()
     goc_data = parse_goc_files(
         process_data.con_file, process_data.inl_file, process_data.raw_file,
         process_data.rop_file, scenario_id=process_data.scenario_id)
     network = build_pm_model(goc_data)
-    PowerModels.silence()
 
     sol = read_solution1(network, output_dir=process_data.output_dir)
     PowerModels.update_data!(network, sol)
@@ -157,7 +160,23 @@ end
     #nlp_solver = JuMP.with_optimizer(Ipopt.Optimizer, tol=1e-6)
     #nlp_solver = JuMP.with_optimizer(Ipopt.Optimizer, tol=1e-6, hessian_approximation="limited-memory")
 
-    contingency_solutions = []
+
+    pad_size = trunc(Int, ceil(log(10,process_data.processes)))
+    padded_pid = lpad(string(process_data.pid), pad_size, "0")
+    solution_filename = "solution2-$(padded_pid).txt"
+
+    if length(process_data.output_dir) > 0
+        solution_path = joinpath(process_data.output_dir, solution_filename)
+    else
+        solution_path = solution_filename
+    end
+    if isfile(solution_path)
+        warn(LOGGER, "removing existing solution2 file $(solution_path)")
+        rm(solution_path)
+    end
+    open(solution_path, "w") do sol_file
+        # creates an empty file in the case of workers without contingencies
+    end
 
     #network_tmp = deepcopy(network)
     for cont in contingencies
@@ -166,6 +185,7 @@ end
             time_start = time()
             network_tmp = deepcopy(network)
             debug(LOGGER, "contingency copy time: $(time() - time_start)")
+            network_tmp["cont_label"] = cont.label
 
             cont_gen = network_tmp["gen"]["$(cont.idx)"]
             cont_gen["contingency"] = true
@@ -176,6 +196,7 @@ end
             result = run_fixpoint_pf_v2_2!(network_tmp, pg_lost, ACRPowerModel, nlp_solver, iteration_limit=5)
             debug(LOGGER, "second-stage contingency solve time: $(time() - time_start)")
 
+            result["solution"]["label"] = cont.label
             result["solution"]["feasible"] = (result["termination_status"] == LOCALLY_SOLVED)
             result["solution"]["cont_type"] = "gen"
             result["solution"]["cont_comp_id"] = cont.idx
@@ -183,38 +204,41 @@ end
             result["solution"]["gen"]["$(cont.idx)"]["pg"] = 0.0
             result["solution"]["gen"]["$(cont.idx)"]["qg"] = 0.0
 
-            push!(contingency_solutions, (lable=cont.label, solution=result["solution"]))
-            network_tmp["gen"]["$(cont.idx)"]["gen_status"] = 1
+            correct_contingency_solution!(network, result["solution"])
+            open(solution_path, "a") do sol_file
+                sol2 = write_solution2_contingency(sol_file, network, result["solution"])
+            end
 
+            network_tmp["gen"]["$(cont.idx)"]["gen_status"] = 1
         elseif cont.type == "branch"
             info(LOGGER, "working on: $(cont.label)")
             time_start = time()
             network_tmp = deepcopy(network)
             debug(LOGGER, "contingency copy time: $(time() - time_start)")
+            network_tmp["cont_label"] = cont.label
             network_tmp["branch"]["$(cont.idx)"]["br_status"] = 0
+
 
             time_start = time()
             result = run_fixpoint_pf_v2_2!(network_tmp, 0.0, ACRPowerModel, nlp_solver, iteration_limit=5)
             debug(LOGGER, "second-stage contingency solve time: $(time() - time_start)")
 
+            result["solution"]["label"] = cont.label
             result["solution"]["feasible"] = (result["termination_status"] == LOCALLY_SOLVED)
             result["solution"]["cont_type"] = "branch"
             result["solution"]["cont_comp_id"] = cont.idx
 
-            push!(contingency_solutions, (lable=cont.label, solution=result["solution"]))
-            network_tmp["branch"]["$(cont.idx)"]["br_status"] = 1
+            correct_contingency_solution!(network, result["solution"])
+            open(solution_path, "a") do sol_file
+                sol2 = write_solution2_contingency(sol_file, network, result["solution"])
+            end
 
+            network_tmp["branch"]["$(cont.idx)"]["br_status"] = 1
         else
             @assert("contingency type $(cont.type) not known")
         end
     end
 
-    correct_contingency_solutions!(network, contingency_solutions)
-
-    pad_size = trunc(Int, ceil(log(10,process_data.processes)))
-    padded_pid = lpad(string(process_data.pid), pad_size, "0")
-    sol2 = write_solution2(network, contingency_solutions; output_dir=process_data.output_dir, solution_file="solution2-$(padded_pid).txt")
-
-    return sol2
+    return solution_path
 end
 
