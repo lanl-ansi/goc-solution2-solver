@@ -34,21 +34,18 @@ function compute_solution2(con_file::String, inl_file::String, raw_file::String,
 
     cont_order = contingency_order(network)
 
-    processes = 1
-    if Distributed.nprocs() > 1
-        processes = Distributed.nprocs()-1 # save one for the master process
-    end
+    workers = Distributed.workers()
 
     process_data = []
 
-    cont_per_proc = cont_total/processes
+    cont_per_proc = cont_total/length(workers)
 
-    for p in 1:processes
+    for p in 1:length(workers)
         cont_start = trunc(Int, ceil(1+(p-1)*cont_per_proc))
         cont_end = min(cont_total, trunc(Int,ceil(p*cont_per_proc)))
         pd = (
             pid = p,
-            processes = processes,
+            processes = length(workers),
             con_file = con_file,
             inl_file = inl_file,
             raw_file = raw_file,
@@ -61,7 +58,7 @@ function compute_solution2(con_file::String, inl_file::String, raw_file::String,
     end
 
     for (i,pd) in enumerate(process_data)
-        info(LOGGER, "task $(pd.pid): $(length(pd.cont_range)) / $(pd.cont_range)")
+        info(LOGGER, "worker task $(pd.pid): $(length(pd.cont_range)) / $(pd.cont_range)")
     end
 
     solution2_files = pmap(solution2_solver, process_data)

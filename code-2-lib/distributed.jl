@@ -30,14 +30,13 @@ function parse_node_names(slurm_node_list::String)
 end
 
 function add_local_procs()
-    proc_ids = Int[]
-    if Distributed.nprocs() <= 2
-        node_processes = min(trunc(Int, Sys.CPU_THREADS*0.75), max_node_processes)
-        println("local processes: $(node_processes) of $(Sys.CPU_THREADS)")
-
-        proc_ids = Distributed.addprocs(node_processes)
+    if Distributed.nprocs() >= 2
+        return
     end
-    return proc_ids
+    node_processes = min(trunc(Int, Sys.CPU_THREADS*0.75), max_node_processes)
+    @info("local processes: $(node_processes) of $(Sys.CPU_THREADS)")
+
+    Distributed.addprocs(node_processes, topology=:master_worker)
 end
 
 function add_remote_procs()
@@ -63,35 +62,28 @@ function add_remote_procs()
     end
     node_names = [name for name in node_names if name != hostname]
 
-    proc_ids = Int[]
     if length(node_names) > 0
         @info("remote slurm nodes: $(node_names)")
         node_processes = min(trunc(Int, Sys.CPU_THREADS*0.75), max_node_processes)
-        println("remote processes per node: $(node_processes)/$(Sys.CPU_THREADS)")
+        @info("remote processes per node: $(node_processes)/$(Sys.CPU_THREADS)")
         for i in 1:node_processes
-            node_proc_ids = Distributed.addprocs(node_names, sshflags="-oStrictHostKeyChecking=no")
-            println("process id batch $(i) of $(node_processes): $(node_proc_ids)")
-            for npid in node_proc_ids
-                push!(proc_ids, npid)
-            end
+            node_proc_ids = Distributed.addprocs(node_names, topology=:master_worker, sshflags="-oStrictHostKeyChecking=no")
+            @info("process id batch $(i) of $(node_processes): $(node_proc_ids)")
         end
     else
         @info("no remote slurm nodes found")
     end
-
-    #println("process ids: $(proc_ids)")
-    return proc_ids
 end
 
 
 function add_procs()
-    proc_ids = add_local_procs()
-    remote_proc_ids = add_remote_procs()
+    start = time()
+    add_local_procs()
+    @info("local proc start: $(time() - start)")
 
-    for pid in remote_proc_ids
-        push!(proc_ids, pid)
-    end
+    start = time()
+    add_remote_procs()
+    @info("remote proc start: $(time() - start)")
 
-    println("process ids: $(proc_ids)")
-    return proc_ids
+    @info("worker ids: $(Distributed.workers())")
 end
