@@ -61,7 +61,7 @@ function compute_solution2(con_file::String, inl_file::String, raw_file::String,
         info(LOGGER, "worker task $(pd.pid): $(length(pd.cont_range)) / $(pd.cont_range)")
     end
 
-    solution2_files = pmap(solution2_solver, process_data)
+    solution2_files = pmap(solution2_solver, process_data, retry_delays = zeros(3))
     sort!(solution2_files)
     #println("pmap result: $(solution2_files)")
 
