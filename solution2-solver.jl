@@ -111,6 +111,8 @@ end
 
     sol = read_solution1(network, output_dir=process_data.output_dir)
     PowerModels.update_data!(network, sol)
+    correct_voltage_angles!(network)
+
     time_data = time() - time_data_start
 
     for (i,bus) in network["bus"]
@@ -119,6 +121,12 @@ end
         end
         if haskey(bus, "evlo")
             bus["vmin"] = bus["evlo"]
+        end
+    end
+
+    for (i,branch) in network["branch"]
+        if haskey(branch, "rate_c")
+            branch["rate_a"] = branch["rate_c"]
         end
     end
 

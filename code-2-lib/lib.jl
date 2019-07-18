@@ -858,6 +858,35 @@ end
 end
 
 
+"""
+assumes there is one reference bus and one connected component and adjusts voltage
+angles to be centered around zero at the reference bus.
+"""
+
+@everywhere function correct_voltage_angles!(network)
+    ref_bus = -1
+    for (i,bus) in network["bus"]
+        if bus["bus_type"] == 3
+            @assert ref_bus == -1
+            ref_bus = bus
+        end
+    end
+
+    if !isapprox(ref_bus["va"], 0.0, atol=1e-8)
+        warn(LOGGER, "shifting voltage angles by $(-ref_bus["va"]) to set reference bus to 0.0")
+        shift_voltage_anlges!(network, -ref_bus["va"])
+    end
+end
+
+
+"shift networks voltage angles by a specified amount"
+
+@everywhere  function shift_voltage_anlges!(network, shift::Number)
+    for (i,bus) in network["bus"]
+        bus["va"] = bus["va"] + shift
+    end
+end
+
 
 "build a static ordering of all contigencies"
 
