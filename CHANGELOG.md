@@ -2,6 +2,9 @@ goc-solution2-solver Change Log
 ===============================
 
 ### Staged
+- nothing
+
+### v0.3.0
 - Made worker write solution2 files incrementally
 - Added automatic deletion of partial solution2 files
 - Added correct_voltage_angles! to given solution1
